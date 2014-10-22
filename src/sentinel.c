@@ -119,6 +119,9 @@ typedef struct sentinelAddr {
 #define SENTINEL_SIMFAILURE_CRASH_AFTER_ELECTION (1<<0)
 #define SENTINEL_SIMFAILURE_CRASH_AFTER_PROMOTION (1<<1)
 
+#define SENTINEL_CONFIG_COMMAND "CONFIG"
+#define SENTINEL_SLAVEOF_COMMAND "SLAVEOF"
+
 /* The link to a sentinelRedisInstance. When we have the same set of Sentinels
  * monitoring many masters, we have different instances representing the
  * same Sentinels, one per master, and we need to share the hiredis connections
@@ -241,6 +244,8 @@ struct sentinelState {
     int announce_port;  /* Port that is gossiped to other sentinels if
                            non zero. */
     unsigned long simfailure_flags; /* Failures simulation. */
+    char *config_command;    /* CONFIG command sent to redis instancees */
+    char *slave_of_command;   /* SLAVEOF command sent to redis instancees */
 } sentinel;
 
 /* A script execution job. */
@@ -468,6 +473,8 @@ void initSentinel(void) {
     sentinel.announce_ip = NULL;
     sentinel.announce_port = 0;
     sentinel.simfailure_flags = SENTINEL_SIMFAILURE_NONE;
+    sentinel.config_command = SENTINEL_CONFIG_COMMAND;
+    sentinel.slave_of_command = SENTINEL_SLAVEOF_COMMAND;
     memset(sentinel.myid,0,sizeof(sentinel.myid));
 }
 
@@ -1684,6 +1691,14 @@ char *sentinelHandleConfiguration(char **argv, int argc) {
     } else if (!strcasecmp(argv[0],"announce-port") && argc == 2) {
         /* announce-port <port> */
         sentinel.announce_port = atoi(argv[1]);
+    } else if (!strcasecmp(argv[0],"rename-config") && argc == 2) {
+        /* rename-config <config-name> */
+        if (strlen(argv[1]))
+            sentinel.config_command = sdsnew(argv[1]);
+    } else if (!strcasecmp(argv[0],"rename-slaveof") && argc == 2) {
+        /* rename-slaveof <slaveof-name> */
+        if (strlen(argv[1]))
+            sentinel.slave_of_command = sdsnew(argv[1]);
     } else {
         return "Unrecognized sentinel configuration statement.";
     }
@@ -3765,12 +3780,12 @@ int sentinelSendSlaveOf(sentinelRedisInstance *ri, char *host, int port) {
     ri->link->pending_commands++;
 
     retval = redisAsyncCommand(ri->link->cc,
-        sentinelDiscardReplyCallback, ri, "SLAVEOF %s %s", host, portstr);
+        sentinelDiscardReplyCallback, ri, "%s %s %s", sentinel.slave_of_command, host, portstr);
     if (retval == C_ERR) return retval;
     ri->link->pending_commands++;
 
     retval = redisAsyncCommand(ri->link->cc,
-        sentinelDiscardReplyCallback, ri, "CONFIG REWRITE");
+        sentinelDiscardReplyCallback, ri, "%s REWRITE", sentinel.config_command);
     if (retval == C_ERR) return retval;
     ri->link->pending_commands++;
 
@@ -4333,4 +4348,3 @@ void sentinelTimer(void) {
      * election because of split brain voting). */
     server.hz = CONFIG_DEFAULT_HZ + rand() % CONFIG_DEFAULT_HZ;
 }
-
