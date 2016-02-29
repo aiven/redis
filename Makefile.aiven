@@ -1,0 +1,15 @@
+short_ver = 3.2
+long_ver = $(shell git describe --long 2>/dev/null || echo $(short_ver)-0-unknown-g`git describe --always`)
+
+all: rpm
+
+rpm:
+	git archive --output=aiven-redis-rpm-src.tar.gz --prefix=aiven-redis/ HEAD
+	rpmbuild -bb aiven-redis.spec \
+		--define '_topdir $(PWD)/rpm' \
+		--define '_sourcedir $(CURDIR)' \
+		--define 'major_version $(short_ver)' \
+		--define 'minor_version $(subst -,.,$(subst $(short_ver)-,,$(long_ver)))'
+	$(RM) aiven-redis-rpm-src.tar.gz
+
+.PHONY: rpm
