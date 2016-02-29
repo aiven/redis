@@ -122,6 +122,8 @@ typedef struct sentinelAddr {
 #define SENTINEL_CONFIG_COMMAND "CONFIG"
 #define SENTINEL_SLAVEOF_COMMAND "SLAVEOF"
 #define SENTINEL_INFO_COMMAND "INFO"
+#define SENTINEL_CLIENT_COMMAND "CLIENT"
+#define SENTINEL_SCRIPT_COMMAND "SCRIPT"
 
 /* The link to a sentinelRedisInstance. When we have the same set of Sentinels
  * monitoring many masters, we have different instances representing the
@@ -248,6 +250,8 @@ struct sentinelState {
     char *config_command;    /* CONFIG command sent to redis instancees */
     char *slave_of_command;   /* SLAVEOF command sent to redis instancees */
     char *info_command;       /* INFO command sent to redis instances */
+    char *client_command;       /* CLIENT command sent to redis instances */
+    char *script_command;       /* SCRIPT command sent to redis instances */
 } sentinel;
 
 /* A script execution job. */
@@ -478,6 +482,8 @@ void initSentinel(void) {
     sentinel.config_command = SENTINEL_CONFIG_COMMAND;
     sentinel.slave_of_command = SENTINEL_SLAVEOF_COMMAND;
     sentinel.info_command = SENTINEL_INFO_COMMAND;
+    sentinel.client_command = SENTINEL_CLIENT_COMMAND;
+    sentinel.script_command = SENTINEL_SCRIPT_COMMAND;
     memset(sentinel.myid,0,sizeof(sentinel.myid));
 }
 
@@ -1706,6 +1712,14 @@ char *sentinelHandleConfiguration(char **argv, int argc) {
         /* rename-info <info-name> */
         if (strlen(argv[1]))
             sentinel.info_command = sdsnew(argv[1]);
+    } else if (!strcasecmp(argv[0],"rename-client") && argc == 2) {
+        /* rename-client <client-name> */
+        if (strlen(argv[1]))
+            sentinel.client_command = sdsnew(argv[1]);
+    } else if (!strcasecmp(argv[0],"rename-script") && argc == 2) {
+        /* rename-script <script-name> */
+        if (strlen(argv[1]))
+            sentinel.script_command = sdsnew(argv[1]);
     } else {
         return "Unrecognized sentinel configuration statement.";
     }
@@ -1913,7 +1927,7 @@ void sentinelSetClientName(sentinelRedisInstance *ri, redisAsyncContext *c, char
 
     snprintf(name,sizeof(name),"sentinel-%.8s-%s",sentinel.myid,type);
     if (redisAsyncCommand(c, sentinelDiscardReplyCallback, ri,
-        "CLIENT SETNAME %s", name) == C_OK)
+            "%s SETNAME %s", sentinel.client_command, name) == C_OK)
     {
         ri->link->pending_commands++;
     }
@@ -2310,7 +2324,7 @@ void sentinelPingReplyCallback(redisAsyncContext *c, void *reply, void *privdata
             {
                 if (redisAsyncCommand(ri->link->cc,
                         sentinelDiscardReplyCallback, ri,
-                        "SCRIPT KILL") == C_OK)
+                            "%s KILL", sentinel.script_command) == C_OK)
                     ri->link->pending_commands++;
                 ri->flags |= SRI_SCRIPT_KILL_SENT;
             }
@@ -3802,7 +3816,7 @@ int sentinelSendSlaveOf(sentinelRedisInstance *ri, char *host, int port) {
      * recognized as a syntax error, and the transaction will not fail (but
      * only the unsupported command will fail). */
     retval = redisAsyncCommand(ri->link->cc,
-        sentinelDiscardReplyCallback, ri, "CLIENT KILL TYPE normal");
+        sentinelDiscardReplyCallback, ri, "%s KILL TYPE normal", sentinel.client_command);
     if (retval == C_ERR) return retval;
     ri->link->pending_commands++;
 
