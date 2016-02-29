@@ -121,6 +121,7 @@ typedef struct sentinelAddr {
 
 #define SENTINEL_CONFIG_COMMAND "CONFIG"
 #define SENTINEL_SLAVEOF_COMMAND "SLAVEOF"
+#define SENTINEL_INFO_COMMAND "INFO"
 
 /* The link to a sentinelRedisInstance. When we have the same set of Sentinels
  * monitoring many masters, we have different instances representing the
@@ -246,6 +247,7 @@ struct sentinelState {
     unsigned long simfailure_flags; /* Failures simulation. */
     char *config_command;    /* CONFIG command sent to redis instancees */
     char *slave_of_command;   /* SLAVEOF command sent to redis instancees */
+    char *info_command;       /* INFO command sent to redis instances */
 } sentinel;
 
 /* A script execution job. */
@@ -475,6 +477,7 @@ void initSentinel(void) {
     sentinel.simfailure_flags = SENTINEL_SIMFAILURE_NONE;
     sentinel.config_command = SENTINEL_CONFIG_COMMAND;
     sentinel.slave_of_command = SENTINEL_SLAVEOF_COMMAND;
+    sentinel.info_command = SENTINEL_INFO_COMMAND;
     memset(sentinel.myid,0,sizeof(sentinel.myid));
 }
 
@@ -1699,6 +1702,10 @@ char *sentinelHandleConfiguration(char **argv, int argc) {
         /* rename-slaveof <slaveof-name> */
         if (strlen(argv[1]))
             sentinel.slave_of_command = sdsnew(argv[1]);
+    } else if (!strcasecmp(argv[0],"rename-info") && argc == 2) {
+        /* rename-info <info-name> */
+        if (strlen(argv[1]))
+            sentinel.info_command = sdsnew(argv[1]);
     } else {
         return "Unrecognized sentinel configuration statement.";
     }
@@ -2620,7 +2627,7 @@ void sentinelSendPeriodicCommands(sentinelRedisInstance *ri) {
     {
         /* Send INFO to masters and slaves, not sentinels. */
         retval = redisAsyncCommand(ri->link->cc,
-            sentinelInfoReplyCallback, ri, "INFO");
+            sentinelInfoReplyCallback, ri, sentinel.info_command);
         if (retval == C_OK) ri->link->pending_commands++;
     } else if ((now - ri->link->last_pong_time) > ping_period &&
                (now - ri->link->last_ping_time) > ping_period/2) {
