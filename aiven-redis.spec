@@ -29,5 +29,9 @@ make
 %attr(755, root, root) /opt/aiven-redis/redis-sentinel
 
 %changelog
+* Wed Aug 24 2016 Mika Eloranta <mel@aiven.io> - 3.2.3
+- Version 3.2.3 
+
 * Mon Feb 29 2016 Mika Eloranta <mel@aiven.io> - 3.2
 - First version
+
