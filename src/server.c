@@ -246,6 +246,9 @@ struct redisCommand redisCommandTable[] = {
     {"flushall",flushallCommand,1,"w",0,NULL,0,0,0,0,0},
     {"sort",sortCommand,-2,"wm",0,sortGetKeys,1,1,1,0,0},
     {"info",infoCommand,-1,"lt",0,NULL,0,0,0,0,0},
+    /* This command is for Sentinel backward compatibility
+       when migrating from masked INFO command to non-masked one */
+    {"aiveninfo",infoCommand,-1,"lt",0,NULL,0,0,0,0,0},
     {"monitor",monitorCommand,1,"as",0,NULL,0,0,0,0,0},
     {"ttl",ttlCommand,2,"rF",0,NULL,1,1,1,0,0},
     {"touch",touchCommand,-2,"rF",0,NULL,1,1,1,0,0},
